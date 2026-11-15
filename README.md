@@ -1,1 +1,97 @@
+# SolarEdge ONE EV Charger (KEBA P30) + SolarEdge PV, fully local with Home Assistant
+
+Local control of a SolarEdge ONE EV Charger (a rebranded KEBA KeContact P30 x-series) and a
+SolarEdge inverter with battery, without the SolarEdge cloud:
+
+- **Charger control**: the charger connects over OCPP 1.6 to a local OCPP server in Home Assistant
+  instead of `csms.solaredge.com`. This is the channel that starts, stops and sets the current.
+- **Charger measurements**: [`keba_one_ev`](https://github.com/mousehome-net/keba_one_ev) over local UDP.
+- **Charging logic**: [evcc](https://evcc.io) as a Home Assistant app, **without a sponsor token**.
+  It reads and controls everything through Home Assistant entities.
+- **Inverter, battery, meter**: the official SolarEdge Modbus integration, over local Modbus TCP.
+
+```
+ SolarEdge ONE charger --OCPP 1.6--> [ OCPP server :9000      ]
+ (KEBA P30 x-series)   --UDP 7090--> [ keba_one_ev            ]  Home Assistant  <--entities-->  evcc
+ SE10K inverter        --Modbus----> [ SolarEdge Modbus       ]                                 (surplus logic)
+ (battery + meter)
+```
+
+What changes compared to the SolarEdge app: charging follows the solar surplus with adjustable
+thresholds, the home battery is never drained into the car, and everything works without Internet.
+In return, the charger disappears from the SolarEdge app.
+
+> Tested in November 2026. This is a personal setup shared as-is, not a product. Not affiliated
+> with SolarEdge, KEBA, evcc or Home Assistant.
+
+## Tested hardware and versions
+
+| Item | Model / version |
+| --- | --- |
+| Inverter | SolarEdge SE10K (SetApp), Modbus TCP enabled |
+| Battery | 2 x SolarEdge 48 V modules, 4.6 kWh each (DC-coupled) |
+| Charger | SolarEdge ONE EV Charger = KEBA KC-P30 x-series, firmware 2.1.1, three-phase |
+| Home Assistant | HAOS 2026.11 |
+| Inverter integration | SolarEdge Modbus (official, HA core) |
+| Charger measurements | keba_one_ev v1.8.0 |
+| OCPP server | [lbbrhzn/ocpp](https://github.com/lbbrhzn/ocpp) v0.12.3 |
+| Charging logic | evcc 0.319.0 (Home Assistant app) |
+| Live flow card | [power-flow-card-plus](https://github.com/flixlix/power-flow-card-plus) v0.6.1 |
+
+Prerequisites:
+
+- Modbus TCP enabled on the inverter (SetApp).
+- DIP switch 1.3 ON inside the charger (enables the local UDP interface, port 7090).
+- The charger must reach Home Assistant on TCP port 9000.
+
+## Why this architecture
+
+On the SolarEdge ONE firmware, almost no UDP command works. The `keba_one_ev` author tested it on
+real hardware: only the current setpoint (`curr`) is reliable; enable/disable, energy target and
+phase switching are ignored (removed in v1.7.0 / v1.8.0). A session cannot be stopped over UDP.
+SolarEdge itself drives the charger through OCPP, so a local OCPP server is the way to get
+start/stop and current control.
+
+evcc's native OCPP and KEBA Modbus chargers require a sponsor token. Its **Home Assistant** charger
+template does not: evcc then drives the OCPP entities exposed by Home Assistant.
+
+## Setup, in order
+
+1. **Inverter**: add the SolarEdge Modbus integration. Keep a single Modbus client on the inverter.
+2. **Template sensors**: see [`homeassistant/templates.yaml`](homeassistant/templates.yaml).
+3. **Energy dashboard**: grid = meter import/export energy; solar = PV energy integral;
+   battery = recomputed charge/discharge integrals (see "Known issues").
+4. **Charger measurements**: install `keba_one_ev`, add it with the charger IP.
+5. **OCPP server and charger**: see [`docs/keba-ocpp.md`](docs/keba-ocpp.md).
+6. **evcc**: see [`evcc/README.md`](evcc/README.md).
+7. **Dashboard** (optional): [`homeassistant/dashboard-energie.yaml`](homeassistant/dashboard-energie.yaml).
+
+## Known issues and limits
+
+- **Battery energy counters over Modbus can freeze.** On a full day compared with the SolarEdge
+  app, production, grid import and grid export matched (14.0 / 14.00 kWh, 58.5 / 58.82 kWh,
+  167 / 168 Wh) but the battery charge/discharge counters did not move at all (0 kWh instead of
+  about 2 kWh each). The battery **power** is reliable, so charge and discharge energy are
+  recomputed from it with Riemann sum integrals.
+- **Occasional wrong Modbus readings**: a battery power reading multiplied by 10 for one sample
+  has been observed. Negligible on the integrals so far.
+- **PV production must be computed on the DC side.** With a DC-coupled battery, the inverter energy
+  counter also includes what the battery gives back. PV power = inverter DC power + battery DC power.
+- **Three-phase only**: no 1P/3P switching locally, so charging cannot go below
+  6 A x 3 x 230 V = about 4.1 kW.
+- **evcc does not control the SolarEdge battery**, it only reads it. If a car charges while the
+  battery is discharging, the inverter feeds the car from the battery.
+- **No vehicle identification** by the charger: it sends its predefined token, or the id tag
+  generated by the OCPP integration when the session is started remotely.
+- **The charger disappears from the SolarEdge app**, and SolarEdge no longer pushes firmware updates.
+
+## Going back to SolarEdge
+
+On the charger OCPP page, restore: address `csms.solaredge.com`, port 443, path `gw`,
+Secure ON, BasicAuthentication, OCPP 1.6 JSON. Identity and key stay stored in the charger if you
+left them untouched; it reconnects on its own.
+
+## License
+
+MIT
 # solaredge-keba-local-ha
