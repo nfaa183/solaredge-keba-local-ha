@@ -94,4 +94,3 @@ left them untouched; it reconnects on its own.
 ## License
 
 MIT
-# solaredge-keba-local-ha
