@@ -1,0 +1,122 @@
+# "Energie maison" dashboard (sections view).
+# Native cards, plus one community card for the live flow: power-flow-card-plus.
+# Entity ids match homeassistant/templates.yaml; ADAPT the keba_one_ev and OCPP ids to yours.
+views:
+  - title: Énergie
+    path: energie
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: En ce moment
+            icon: mdi:flash
+          - type: custom:power-flow-card-plus
+            entities:
+              grid:
+                entity: sensor.grid_power          # + import, - export
+                name: Réseau
+              solar:
+                entity: sensor.pv_power
+                name: Solaire
+              battery:
+                entity: sensor.battery_power       # + discharge, - charge
+                state_of_charge: sensor.battery_1_state_of_energy
+                name: Batterie
+              home:
+                entity: sensor.house_power
+                name: Maison
+                override_state: true
+              individual:
+                - entity: sensor.keba_charging_power
+                  name: Borne
+                  icon: mdi:ev-station
+                  display_zero: true
+            watt_threshold: 1000
+            kw_decimals: 2
+            clickable_entities: true
+            grid_options:
+              columns: 12
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Borne
+            icon: mdi:ev-station
+          - type: tile
+            entity: sensor.keba_charging_power
+            name: Puissance
+            icon: mdi:car-electric
+            color: cyan
+            grid_options: {columns: 6}
+          - type: tile
+            entity: sensor.keba_charging_state
+            name: État
+            icon: mdi:ev-plug-type2
+            color: grey
+            grid_options: {columns: 6}
+          - type: tile
+            entity: sensor.keba_session_energy
+            name: Session
+            icon: mdi:counter
+            color: cyan
+            grid_options: {columns: 6}
+          - type: tile
+            entity: number.charger_maximum_current     # OCPP integration
+            name: Courant max.
+            icon: mdi:current-ac
+            color: cyan
+            grid_options: {columns: 6}
+          - type: tile
+            entity: switch.charger_charge_control      # OCPP integration
+            name: Charge
+            icon: mdi:power
+            color: green
+            grid_options: {columns: 12}
+          - type: markdown
+            content: >-
+              La recharge est pilotée par **evcc** (barre latérale).
+              Un changement manuel ici peut être annulé par evcc.
+            grid_options: {columns: 12}
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Aujourd'hui
+            icon: mdi:calendar-today
+          - type: energy-date-selection
+            grid_options: {columns: 12}
+          - type: energy-distribution
+            link_dashboard: true
+            grid_options: {columns: 12}
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Puissances sur 24 h
+            icon: mdi:chart-line
+          - type: history-graph
+            hours_to_show: 24
+            entities:
+              - entity: sensor.pv_power
+                name: Solaire
+              - entity: sensor.house_power
+                name: Maison
+              - entity: sensor.grid_power
+                name: Réseau
+              - entity: sensor.battery_power
+                name: Batterie
+              - entity: sensor.keba_charging_power
+                name: Borne
+            grid_options: {columns: 12}
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Énergie
+            icon: mdi:chart-bar
+          - type: energy-usage-graph
+            grid_options: {columns: 12}
+          - type: energy-solar-graph
+            grid_options: {columns: 12}
