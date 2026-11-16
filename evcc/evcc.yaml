@@ -1,0 +1,69 @@
+# evcc configuration for the evcc Home Assistant app, using only the Home Assistant templates
+# (no sponsor token needed). Entity ids come from homeassistant/packages/solaredge_keba.yaml
+# and from the renamed source entities (README, step 3).
+#
+# To use this file: put it in the app's config folder (/addon_configs/49686a9f_evcc/evcc.yaml)
+# and set "config_file: /config/evcc.yaml" in the app's Configuration tab.
+# Devices defined here are read-only in the evcc web UI.
+#
+# Status: on the reference installation the same devices and values were entered in the evcc
+# web UI; this YAML transcription has not been run as such.
+
+# Poll interval. 30 s is the evcc default and what runs on the reference installation.
+interval: 30s
+
+site:
+  title: Home
+  meters:
+    grid: grid
+    pv:
+      - pv
+    battery:
+      - battery
+
+meters:
+  - name: grid
+    type: template
+    template: homeassistant
+    usage: grid
+    uri: http://supervisor/core        # evcc runs as a Home Assistant app: no token needed
+    power: sensor.grid_power           # + import, - export
+
+  - name: pv
+    type: template
+    template: homeassistant
+    usage: pv
+    uri: http://supervisor/core
+    power: sensor.pv_power
+
+  - name: battery
+    type: template
+    template: homeassistant
+    usage: battery
+    uri: http://supervisor/core
+    power: sensor.battery_power        # + discharge, - charge
+    soc: sensor.solaredge_battery_soe
+    capacity: 9.2                      # kWh, adapt to your battery
+
+chargers:
+  - name: wallbox
+    type: template
+    template: homeassistant
+    uri: http://supervisor/core
+    status: sensor.charger_status_evcc               # A / B / C, from the package
+    enabled: switch.charger_charge_control           # OCPP integration
+    enable: switch.charger_charge_control            # OCPP integration
+    setMaxCurrent: number.charger_maximum_current    # OCPP integration
+    power: sensor.keba_charging_power                # keba_one_ev
+    energy: sensor.keba_total_energy                 # keba_one_ev
+    currentL1: sensor.keba_current_l1
+    currentL2: sensor.keba_current_l2
+    currentL3: sensor.keba_current_l3
+
+loadpoints:
+  - title: Carport
+    charger: wallbox
+    mode: pv
+    phases: 3          # no 1P/3P switching on this charger without the SolarEdge cloud
+    mincurrent: 6
+    maxcurrent: 16     # adapt to your charger and grid connection
