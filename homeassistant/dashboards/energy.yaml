@@ -1,36 +1,37 @@
-# "Energie maison" dashboard (sections view).
-# Native cards, plus one community card for the live flow: power-flow-card-plus.
-# Entity ids match homeassistant/templates.yaml; ADAPT the keba_one_ev and OCPP ids to yours.
+# "Energy" dashboard (sections view), as running on the reference installation, in English.
+# Native cards + one community card: power-flow-card-plus (Settings -> Marketplace).
+# Create a new dashboard, open the raw configuration editor and paste this file.
+title: Energy
 views:
-  - title: Énergie
-    path: energie
+  - title: Energy
+    path: energy
     type: sections
     max_columns: 3
     sections:
       - type: grid
         cards:
           - type: heading
-            heading: En ce moment
+            heading: Right now
             icon: mdi:flash
           - type: custom:power-flow-card-plus
             entities:
               grid:
-                entity: sensor.grid_power          # + import, - export
-                name: Réseau
+                entity: sensor.grid_power            # + import, - export
+                name: Grid
               solar:
                 entity: sensor.pv_power
-                name: Solaire
+                name: Solar
               battery:
-                entity: sensor.battery_power       # + discharge, - charge
-                state_of_charge: sensor.battery_1_state_of_energy
-                name: Batterie
+                entity: sensor.battery_power         # + discharge, - charge
+                state_of_charge: sensor.solaredge_battery_soe
+                name: Battery
               home:
                 entity: sensor.house_power
-                name: Maison
+                name: Home
                 override_state: true
               individual:
                 - entity: sensor.keba_charging_power
-                  name: Borne
+                  name: Charger
                   icon: mdi:ev-station
                   display_zero: true
             watt_threshold: 1000
@@ -42,17 +43,17 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: Borne
+            heading: Charger
             icon: mdi:ev-station
           - type: tile
             entity: sensor.keba_charging_power
-            name: Puissance
+            name: Power
             icon: mdi:car-electric
             color: cyan
             grid_options: {columns: 6}
           - type: tile
             entity: sensor.keba_charging_state
-            name: État
+            name: State
             icon: mdi:ev-plug-type2
             color: grey
             grid_options: {columns: 6}
@@ -63,27 +64,23 @@ views:
             color: cyan
             grid_options: {columns: 6}
           - type: tile
-            entity: number.charger_maximum_current     # OCPP integration
-            name: Courant max.
+            entity: number.charger_maximum_current   # OCPP integration
+            name: Max current
             icon: mdi:current-ac
             color: cyan
             grid_options: {columns: 6}
           - type: tile
-            entity: switch.charger_charge_control      # OCPP integration
-            name: Charge
-            icon: mdi:power
+            entity: switch.charger_charge_control    # OCPP integration
+            name: Charging
             color: green
-            grid_options: {columns: 12}
-          - type: markdown
-            content: >-
-              La recharge est pilotée par **evcc** (barre latérale).
-              Un changement manuel ici peut être annulé par evcc.
+            tap_action: {action: none}
+            icon_tap_action: {action: none}
             grid_options: {columns: 12}
 
       - type: grid
         cards:
           - type: heading
-            heading: Aujourd'hui
+            heading: Today
             icon: mdi:calendar-today
           - type: energy-date-selection
             grid_options: {columns: 12}
@@ -94,27 +91,28 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: Puissances sur 24 h
+            heading: Power, last 24 h
             icon: mdi:chart-line
           - type: history-graph
             hours_to_show: 24
             entities:
               - entity: sensor.pv_power
-                name: Solaire
+                name: Solar
               - entity: sensor.house_power
-                name: Maison
+                name: Home
               - entity: sensor.grid_power
-                name: Réseau
+                name: Grid
               - entity: sensor.battery_power
-                name: Batterie
+                name: Battery
               - entity: sensor.keba_charging_power
-                name: Borne
+                name: Charger
             grid_options: {columns: 12}
 
       - type: grid
+        column_span: 2
         cards:
           - type: heading
-            heading: Énergie
+            heading: Energy
             icon: mdi:chart-bar
           - type: energy-usage-graph
             grid_options: {columns: 12}

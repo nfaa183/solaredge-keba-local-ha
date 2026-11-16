@@ -1,0 +1,117 @@
+# SolarEdge + KEBA (SolarEdge ONE) local setup: all helper sensors in one package.
+#
+# Requires the source entities to be renamed first (README, step 3):
+#   sensor.solaredge_inverter_dc_power      inverter DC power (W)
+#   sensor.solaredge_battery_dc_power       battery DC power (W), SolarEdge sign: + charging, - discharging
+#   sensor.solaredge_meter_power            grid meter power (W), SolarEdge sign: + export, - import
+#   binary_sensor.keba_charging             keba_one_ev "Charging"
+#   binary_sensor.keba_vehicle_connected    keba_one_ev "Vehicle Connected"
+#
+# Load it with, in configuration.yaml:
+#   homeassistant:
+#     packages: !include_dir_named packages
+
+template:
+  - sensor:
+      # PV production measured on the DC side. With a DC-coupled battery, the inverter output
+      # also contains what the battery gives back, so it cannot be used as "solar production".
+      - name: "PV power"
+        unique_id: se_keba_pv_power
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set inv = states('sensor.solaredge_inverter_dc_power') | float(none) %}
+          {% set bat = states('sensor.solaredge_battery_dc_power') | float(none) %}
+          {% if inv is none or bat is none %}{{ none }}
+          {% else %}{{ [inv + bat, 0] | max | round(0) }}{% endif %}
+
+      # Grid power with the sign Home Assistant and evcc expect: + import, - export
+      - name: "Grid power"
+        unique_id: se_keba_grid_power
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set p = states('sensor.solaredge_meter_power') | float(none) %}
+          {% if p is none %}{{ none }}{% else %}{{ (-p) | round(0) }}{% endif %}
+
+      # Battery power with the sign Home Assistant and evcc expect: + discharge, - charge
+      - name: "Battery power"
+        unique_id: se_keba_battery_power
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set p = states('sensor.solaredge_battery_dc_power') | float(none) %}
+          {% if p is none %}{{ none }}{% else %}{{ (-p) | round(0) }}{% endif %}
+
+      # Battery power split in two, used to rebuild the battery energy counters below
+      - name: "Battery charge power"
+        unique_id: se_keba_battery_charge_power
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set p = states('sensor.solaredge_battery_dc_power') | float(none) %}
+          {% if p is none %}{{ none }}{% else %}{{ [p, 0] | max | round(0) }}{% endif %}
+
+      - name: "Battery discharge power"
+        unique_id: se_keba_battery_discharge_power
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set p = states('sensor.solaredge_battery_dc_power') | float(none) %}
+          {% if p is none %}{{ none }}{% else %}{{ [-p, 0] | max | round(0) }}{% endif %}
+
+      # House consumption (car included) = PV + grid + battery
+      - name: "House power"
+        unique_id: se_keba_house_power
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set pv = states('sensor.pv_power') | float(none) %}
+          {% set g = states('sensor.grid_power') | float(none) %}
+          {% set b = states('sensor.battery_power') | float(none) %}
+          {% if pv is none or g is none or b is none %}{{ none }}
+          {% else %}{{ [pv + g + b, 0] | max | round(0) }}{% endif %}
+
+      # Charger status in evcc format: A = no vehicle, B = vehicle connected, C = charging
+      - name: "Charger status evcc"
+        unique_id: se_keba_charger_status_evcc
+        state: >
+          {% if is_state('binary_sensor.keba_charging', 'on') %}C
+          {% elif is_state('binary_sensor.keba_vehicle_connected', 'on') %}B
+          {% else %}A{% endif %}
+
+# Energy counters rebuilt from power (Riemann sum, left method).
+# The SolarEdge battery energy counters read over Modbus are not reliable (README, known issues).
+sensor:
+  - platform: integration
+    name: "PV energy"
+    unique_id: se_keba_pv_energy
+    source: sensor.pv_power
+    method: left
+    unit_prefix: k
+    unit_time: h
+    round: 3
+
+  - platform: integration
+    name: "Battery energy charged"
+    unique_id: se_keba_battery_energy_charged
+    source: sensor.battery_charge_power
+    method: left
+    unit_prefix: k
+    unit_time: h
+    round: 3
+
+  - platform: integration
+    name: "Battery energy discharged"
+    unique_id: se_keba_battery_energy_discharged
+    source: sensor.battery_discharge_power
+    method: left
+    unit_prefix: k
+    unit_time: h
+    round: 3
